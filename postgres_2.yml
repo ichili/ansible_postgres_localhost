@@ -1,0 +1,79 @@
+---
+- name: install postgresql
+  hosts: localhost
+  become: yes
+  vars:
+    postgresql_version: 10
+
+  tasks:
+  - name: add postgresql repository
+    apt_repository:
+      repo: "deb http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
+      state: present
+      update_cache: yes
+
+  - name: import repository key
+    apt_key:
+       url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+       state: present
+
+  - name: update apt cache
+    apt:
+      update_cache: yes
+
+  - name: install postgresql
+    apt:
+      name: postgresql-{{postgresql_version}}
+      state: present
+
+- name: configure postgresql
+  hosts: localhost
+  become: yes
+  vars:
+    postgresql_version: 10
+    pgpath: "/usr/lib/postgresql/{{postgresql_version}}/bin"
+    pgdata: "/home/pgdata"
+    db_name: testdb
+    user: testuser
+    password: testpassword
+
+  tasks:
+
+  - name: ensure postgresql is not running
+    service:
+      name: postgresql
+      enabled: yes
+      state: stopped
+    become_user: postgres
+
+  - name: ensure pgdata exists & is owned by postgres
+    file:
+      path: "{{pgdata}}"
+      state: directory
+      owner: postgres
+
+  - name: initiate db
+    command: "{{pgpath}}/initdb -D {{pgdata}}"
+    args:
+      creates: "/etc/postgresql/10/main/pg_hba.conf"
+    become_user: postgres
+
+  - name: start postgresql
+    service:
+      name: postgresql
+      state: started
+
+  - name: create user
+    postgresql_user:
+      name: "{{user}}"
+      password: "{{password}}"
+    become_user: postgres
+    
+  - name: create base
+    postgresql_db:
+      name: "{{db_name}}"
+      state: present
+      encoding: UTF-8
+      owner: "{{user}}"
+    become_user: postgres
+...
